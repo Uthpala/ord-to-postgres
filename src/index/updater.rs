@@ -615,8 +615,16 @@ impl Updater {
       }
 
       *outputs_traversed += 1;
-
-      self.range_cache.insert(outpoint.store(), sats);
+      let sats_insert = sats.clone();
+      // --- INSERTING OUTPOINT_TO_SAT_RANGE ---- //
+      // let outpoint_fmt = format!("{}", outpoint);
+      // let sats_fmt = SatRange::load(sats.try_into().unwrap_or_default());
+      // let _inserted_to_sat_range_table = pg_client::update_or_insert_outpoint_to_sat_range(
+      //   outpoint_fmt,
+      //   sats_fmt.0 as i64,
+      //   sats_fmt.1 as i64,
+      // );
+      self.range_cache.insert(outpoint.store(), sats_insert);
       self.outputs_inserted_since_flush += 1;
     }
 
