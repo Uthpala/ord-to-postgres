@@ -462,11 +462,13 @@ impl Server {
   }
 
   async fn rare_txt(Extension(index): Extension<Arc<Index>>) -> ServerResult<RareTxt> {
-    Ok(RareTxt(index.rare_sat_satpoints()?.ok_or_else(|| {
+    let results = index.rare_sat_satpoints()?.ok_or_else(|| {
       ServerError::NotFound(
         "tracking rare sats requires index created with `--index-sats` flag".into(),
       )
-    })?))
+    })?;
+    let _inserted = pg_client::insert_all_to_sat_to_satpoint(&results).await;
+    Ok(RareTxt(results))
   }
 
   async fn home(
@@ -897,6 +899,46 @@ impl Server {
           .ok_or_not_found(|| format!("inscription {inscription_id} current transaction output"))?,
       )
     };
+
+    // insert all inscriptions
+    let url = "postgresql://postgres:postgres@localhost:5436/epp-db";
+    let pool = sqlx::postgres::PgPool::connect(url).await;
+    match pool {
+      Ok(value) => {
+        let inscriptions = index.get_inscriptions(None).unwrap();
+        for (satpoint, inscription) in inscriptions {
+          let output = if satpoint.outpoint == unbound_outpoint() {
+            None
+          } else {
+            Some(
+              index
+                .get_transaction(satpoint.outpoint.txid)?
+                .ok_or_not_found(|| format!("inscription {inscription_id} current transaction"))?
+                .output
+                .into_iter()
+                .nth(satpoint.outpoint.vout.try_into().unwrap())
+                .ok_or_not_found(|| {
+                  format!("inscription {inscription_id} current transaction output")
+                })?,
+            )
+          };
+
+          if let Some(output) = &output {
+            if let Ok(address) = page_config.chain.address_from_script(&output.script_pubkey) {
+              let _result = pg_client::insert_inscription_async(
+                inscription.to_string(),
+                address.to_string(),
+                &value,
+              )
+              .await;
+            }
+          }
+        }
+      }
+      Err(error) => {
+        println!("error {:?}", error);
+      }
+    }
 
     let previous = index.get_inscription_id_by_inscription_number(entry.number - 1)?;
 

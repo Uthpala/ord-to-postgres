@@ -3,11 +3,9 @@ use super::*;
 use postgres::{Client as PGCLient, NoTls};
 use std::error::Error;
 
-// const URL: &str = "postgresql://postgres:postgres@localhost:5436/epp-db";
-const URL: &str =
-  "postgresql://postgres:n!FJcKwBR6buban@db.zbjfyhudmtqfxwajuuxg.supabase.co:5432/postgres";
+const URL: &str = "postgresql://postgres:postgres@localhost:5436/epp-db";
+// const URL: &str = "postgresql://postgres:n!FJcKwBR6buban@db.zbjfyhudmtqfxwajuuxg.supabase.co:5432/postgres";
 
-/*
 struct SatToSatpoint {
   pub sat: i64,
   pub satpoint: String,
@@ -29,12 +27,10 @@ async fn insert_sat_to_satpoint(
 pub async fn insert_all_to_sat_to_satpoint(
   results: &Vec<(Sat, SatPoint)>,
 ) -> Result<(), Box<dyn Error>> {
-  let url =
-    "postgresql://postgres:n!FJcKwBR6buban@db.zbjfyhudmtqfxwajuuxg.supabase.co:5432/postgres";
-  let pool = sqlx::postgres::PgPool::connect(url).await;
+  let pool = sqlx::postgres::PgPool::connect(URL).await;
   match pool {
     Ok(value) => {
-      for (sat, sat_point) in results.iter().rev().take(1000) {
+      for (sat, sat_point) in results {
         let sat_data = SatToSatpoint {
           sat: sat.n() as i64,
           satpoint: sat_point.to_string(),
@@ -48,7 +44,6 @@ pub async fn insert_all_to_sat_to_satpoint(
   }
   Ok(())
 }
- */
 
 pub fn update_or_insert_sat_to_satpoint(sat: i64, satpoint: String) -> Result<(), Box<dyn Error>> {
   let mut client = PGCLient::connect(URL, NoTls)?;
@@ -111,20 +106,20 @@ pub fn update_or_insert_inscription(
   Ok(())
 }
 
-// pub async fn insert_inscription_async(
-//   inscription: String,
-//   address: String,
-//   pool: &sqlx::PgPool,
-// ) -> Result<(), Box<dyn Error>> {
-//   let query = "INSERT INTO inscriptions (inscription_id, address) VALUES ($1, $2)";
-//   sqlx::query(query)
-//     .bind(&inscription)
-//     .bind(&address)
-//     .execute(pool)
-//     .await?;
+pub async fn insert_inscription_async(
+  inscription: String,
+  address: String,
+  pool: &sqlx::PgPool,
+) -> Result<(), Box<dyn Error>> {
+  let query = "INSERT INTO inscriptions (inscription_id, address) VALUES ($1, $2)";
+  sqlx::query(query)
+    .bind(&inscription)
+    .bind(&address)
+    .execute(pool)
+    .await?;
 
-//   Ok(())
-// }
+  Ok(())
+}
 
 // pub fn update_or_insert_inscription_id_to_inscription_entry(
 //   inscription_id: String,
