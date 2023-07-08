@@ -72,6 +72,7 @@ use {
   tempfile::TempDir,
   tokio::{runtime::Runtime, task},
 };
+mod pg_client;
 
 pub use crate::{
   fee_rate::FeeRate, object::Object, rarity::Rarity, sat::Sat, sat_point::SatPoint,

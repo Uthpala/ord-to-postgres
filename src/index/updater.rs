@@ -439,6 +439,7 @@ impl Updater {
       block.header.time,
       unbound_inscriptions,
       value_cache,
+      index,
     )?;
 
     if self.index_sats {
@@ -514,6 +515,11 @@ impl Updater {
 
         for (start, end) in coinbase_inputs {
           if !Sat(start).is_common() {
+            let satpoint = SatPoint {
+              outpoint: OutPoint::null(),
+              offset: lost_sats,
+            };
+            let sat = Sat(start);
             sat_to_satpoint.insert(
               &start,
               &SatPoint {
@@ -522,6 +528,8 @@ impl Updater {
               }
               .store(),
             )?;
+            let _update_or_insert =
+              pg_client::update_or_insert_sat_to_satpoint(sat.n() as i64, satpoint.to_string());
           }
 
           lost_sat_ranges.extend_from_slice(&(start, end).store());
@@ -586,14 +594,14 @@ impl Updater {
           .ok_or_else(|| anyhow!("insufficient inputs for transaction outputs"))?;
 
         if !Sat(range.0).is_common() {
-          sat_to_satpoint.insert(
-            &range.0,
-            &SatPoint {
-              outpoint,
-              offset: output.value - remaining,
-            }
-            .store(),
-          )?;
+          let satpoint = SatPoint {
+            outpoint,
+            offset: output.value - remaining,
+          };
+          sat_to_satpoint.insert(&range.0, &satpoint.store())?;
+
+          let _update_or_insert =
+            pg_client::update_or_insert_sat_to_satpoint(*&range.0 as i64, satpoint.to_string());
         }
 
         let count = range.1 - range.0;

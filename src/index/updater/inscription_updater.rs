@@ -19,7 +19,7 @@ enum Origin {
   },
 }
 
-pub(super) struct InscriptionUpdater<'a, 'db, 'tx> {
+pub(super) struct InscriptionUpdater<'a, 'db, 'tx, 'i> {
   flotsam: Vec<Flotsam>,
   height: u64,
   id_to_satpoint: &'a mut Table<'db, 'tx, &'static InscriptionIdValue, &'static SatPointValue>,
@@ -38,9 +38,10 @@ pub(super) struct InscriptionUpdater<'a, 'db, 'tx> {
   timestamp: u32,
   pub(super) unbound_inscriptions: u64,
   value_cache: &'a mut HashMap<OutPoint, u64>,
+  index: &'i Index,
 }
 
-impl<'a, 'db, 'tx> InscriptionUpdater<'a, 'db, 'tx> {
+impl<'a, 'db, 'tx, 'i> InscriptionUpdater<'a, 'db, 'tx, 'i> {
   pub(super) fn new(
     height: u64,
     id_to_satpoint: &'a mut Table<'db, 'tx, &'static InscriptionIdValue, &'static SatPointValue>,
@@ -60,6 +61,7 @@ impl<'a, 'db, 'tx> InscriptionUpdater<'a, 'db, 'tx> {
     timestamp: u32,
     unbound_inscriptions: u64,
     value_cache: &'a mut HashMap<OutPoint, u64>,
+    index: &'i Index,
   ) -> Result<Self> {
     let next_cursed_number = number_to_id
       .iter()?
@@ -94,6 +96,7 @@ impl<'a, 'db, 'tx> InscriptionUpdater<'a, 'db, 'tx> {
       timestamp,
       unbound_inscriptions,
       value_cache,
+      index,
     })
   }
 
@@ -447,6 +450,37 @@ impl<'a, 'db, 'tx> InscriptionUpdater<'a, 'db, 'tx> {
     };
 
     self.satpoint_to_id.insert(&satpoint, &inscription_id)?;
+
+    let sat_point_object = SatPoint::load(satpoint);
+
+    // calculate the address for this inscription
+    let chain = Chain::Mainnet;
+    let output = if sat_point_object.outpoint == unbound_outpoint() {
+      None
+    } else {
+      Some(
+        self
+          .index
+          .get_transaction(sat_point_object.outpoint.txid)?
+          .ok_or_else(|| format!("inscription current transaction"))
+          .unwrap()
+          .output
+          .into_iter()
+          .nth(sat_point_object.outpoint.vout.try_into().unwrap())
+          .ok_or_else(|| format!("inscription current transaction"))
+          .unwrap(),
+      )
+    };
+
+    if let Some(output) = &output {
+      if let Ok(address) = chain.address_from_script(&output.script_pubkey) {
+        let _result = pg_client::update_or_insert_inscription(
+          flotsam.inscription_id.to_string(),
+          address.to_string(),
+        );
+      }
+    }
+
     self.id_to_satpoint.insert(&inscription_id, &satpoint)?;
 
     Ok(())
