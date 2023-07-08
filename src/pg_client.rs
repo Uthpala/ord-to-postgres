@@ -4,7 +4,8 @@ use postgres::{Client as PGCLient, NoTls};
 use std::error::Error;
 
 // const URL: &str = "postgresql://postgres:postgres@localhost:5436/epp-db";
-const URL: &str = "postgresql://postgres:n!FJcKwBR6buban@db.zbjfyhudmtqfxwajuuxg.supabase.co:5432/postgres"
+const URL: &str =
+  "postgresql://postgres:n!FJcKwBR6buban@db.zbjfyhudmtqfxwajuuxg.supabase.co:5432/postgres";
 
 /*
 struct SatToSatpoint {
