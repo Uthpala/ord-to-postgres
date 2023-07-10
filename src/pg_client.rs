@@ -3,7 +3,8 @@ use super::*;
 use postgres::{Client as PGCLient, NoTls};
 use std::error::Error;
 
-const URL: &str = "postgresql://postgres:postgres@localhost:5436/epp-db";
+// const URL: &str = "postgresql://postgres:postgres@localhost:5436/epp-db";
+const URL: &str = "postgresql://uthpala:password@127.0.0.1:5432/postgres";
 // const URL: &str = "postgresql://postgres:n!FJcKwBR6buban@db.zbjfyhudmtqfxwajuuxg.supabase.co:5432/postgres";
 
 struct SatToSatpoint {
@@ -15,7 +16,7 @@ async fn insert_sat_to_satpoint(
   sat_to_satpoint: &SatToSatpoint,
   pool: &sqlx::PgPool,
 ) -> Result<(), Box<dyn Error>> {
-  let query = "INSERT INTO sat_to_satpoint (sat, satpoint) VALUES ($1, $2)";
+  let query = "INSERT INTO sat_to_satpoint (sat, satpoint) VALUES ($1, $2) ON CONFLICT(sat) DO UPDATE SET satpoint = $2";
   sqlx::query(query)
     .bind(&sat_to_satpoint.sat)
     .bind(&sat_to_satpoint.satpoint)
@@ -48,17 +49,10 @@ pub async fn insert_all_to_sat_to_satpoint(
 pub fn update_or_insert_sat_to_satpoint(sat: i64, satpoint: String) -> Result<(), Box<dyn Error>> {
   let mut client = PGCLient::connect(URL, NoTls)?;
 
-  let update = client.execute(
-    "UPDATE sat_to_satpoint SET satpoint = $2 WHERE sat = $1",
-    &[&sat, &satpoint],
-  )?;
-
-  if update == 0 {
-    client.execute(
-      "INSERT INTO sat_to_satpoint (sat, satpoint) VALUES ($1, $2)",
+  client.execute(
+      "INSERT INTO sat_to_satpoint (sat, satpoint) VALUES ($1, $2) ON CONFLICT(sat) DO UPDATE SET satpoint = $2",
       &[&sat, &satpoint],
     )?;
-  }
   Ok(())
 }
 
@@ -91,18 +85,10 @@ pub fn update_or_insert_inscription(
 ) -> Result<(), Box<dyn Error>> {
   let mut client = PGCLient::connect(URL, NoTls)?;
 
-  let update = client.execute(
-    "UPDATE inscriptions SET address = $2 WHERE inscription_id = $1",
+  let _result = client.execute(
+    "INSERT INTO inscriptions (inscription_id, address) VALUES ($1, $2) ON CONFLICT(inscription_id) DO UPDATE SET address = $2",
     &[&inscription, &address],
   )?;
-
-  if update == 0 {
-    client.execute(
-      "INSERT INTO inscriptions (inscription_id, address) VALUES ($1, $2)",
-      &[&inscription, &address],
-    )?;
-  }
-
   Ok(())
 }
 
@@ -111,7 +97,7 @@ pub async fn insert_inscription_async(
   address: String,
   pool: &sqlx::PgPool,
 ) -> Result<(), Box<dyn Error>> {
-  let query = "INSERT INTO inscriptions (inscription_id, address) VALUES ($1, $2)";
+  let query = "INSERT INTO inscriptions (inscription_id, address) VALUES ($1, $2) ON CONFLICT(inscription_id) DO UPDATE SET address = $2";
   sqlx::query(query)
     .bind(&inscription)
     .bind(&address)

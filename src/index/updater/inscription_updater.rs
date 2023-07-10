@@ -296,6 +296,7 @@ impl<'a, 'db, 'tx, 'i> InscriptionUpdater<'a, 'db, 'tx, 'i> {
     let mut inscriptions = floating_inscriptions.into_iter().peekable();
 
     let mut output_value = 0;
+    let chain = Chain::Mainnet;
     for (vout, tx_out) in tx.output.iter().enumerate() {
       let end = output_value + tx_out.value;
 
@@ -312,11 +313,32 @@ impl<'a, 'db, 'tx, 'i> InscriptionUpdater<'a, 'db, 'tx, 'i> {
           offset: flotsam.offset - output_value,
         };
 
-        self.update_inscription_location(
-          input_sat_ranges,
-          inscriptions.next().unwrap(),
-          new_satpoint,
-        )?;
+        let address = chain.address_from_script(&tx_out.script_pubkey);
+        let inscription = inscriptions.next().unwrap();
+
+        match address {
+          Ok(value) => {
+            self.update_inscription_location(
+              input_sat_ranges,
+              inscription,
+              new_satpoint,
+              value.to_string(),
+            )?;
+          }
+          Err(err) => {
+            println!(
+              "inscri {} insert err {}",
+              inscription.inscription_id.to_string(),
+              err
+            );
+            self.update_inscription_location(
+              input_sat_ranges,
+              inscription,
+              new_satpoint,
+              "".to_string(),
+            )?;
+          }
+        }
       }
 
       output_value = end;
@@ -336,7 +358,8 @@ impl<'a, 'db, 'tx, 'i> InscriptionUpdater<'a, 'db, 'tx, 'i> {
           outpoint: OutPoint::null(),
           offset: self.lost_sats + flotsam.offset - output_value,
         };
-        self.update_inscription_location(input_sat_ranges, flotsam, new_satpoint)?;
+        let address = "".to_string();
+        self.update_inscription_location(input_sat_ranges, flotsam, new_satpoint, address)?;
       }
       self.lost_sats += self.reward - output_value;
       Ok(())
@@ -375,6 +398,7 @@ impl<'a, 'db, 'tx, 'i> InscriptionUpdater<'a, 'db, 'tx, 'i> {
     input_sat_ranges: Option<&VecDeque<(u64, u64)>>,
     flotsam: Flotsam,
     new_satpoint: SatPoint,
+    address: String,
   ) -> Result {
     let inscription_id = flotsam.inscription_id.store();
     let unbound = match flotsam.origin {
@@ -450,35 +474,40 @@ impl<'a, 'db, 'tx, 'i> InscriptionUpdater<'a, 'db, 'tx, 'i> {
     };
 
     self.satpoint_to_id.insert(&satpoint, &inscription_id)?;
+    if address == "".to_string() {
+      // calculate the address for this inscription
+      let sat_point_object = SatPoint::load(satpoint);
+      let chain = Chain::Mainnet;
+      let output = if sat_point_object.outpoint == unbound_outpoint() {
+        None
+      } else {
+        Some(
+          self
+            .index
+            .get_transaction(sat_point_object.outpoint.txid)?
+            .ok_or_else(|| format!("inscription current transaction"))
+            .unwrap()
+            .output
+            .into_iter()
+            .nth(sat_point_object.outpoint.vout.try_into().unwrap())
+            .ok_or_else(|| format!("inscription current transaction"))
+            .unwrap(),
+        )
+      };
 
-    let sat_point_object = SatPoint::load(satpoint);
-
-    // calculate the address for this inscription
-    let chain = Chain::Mainnet;
-    let output = if sat_point_object.outpoint == unbound_outpoint() {
-      None
-    } else {
-      Some(
-        self
-          .index
-          .get_transaction(sat_point_object.outpoint.txid)?
-          .ok_or_else(|| format!("inscription current transaction"))
-          .unwrap()
-          .output
-          .into_iter()
-          .nth(sat_point_object.outpoint.vout.try_into().unwrap())
-          .ok_or_else(|| format!("inscription current transaction"))
-          .unwrap(),
-      )
-    };
-
-    if let Some(output) = &output {
-      if let Ok(address) = chain.address_from_script(&output.script_pubkey) {
-        let _result = pg_client::update_or_insert_inscription(
-          flotsam.inscription_id.to_string(),
-          address.to_string(),
-        );
+      if let Some(output) = &output {
+        if let Ok(address) = chain.address_from_script(&output.script_pubkey) {
+          let _result = pg_client::update_or_insert_inscription(
+            flotsam.inscription_id.to_string(),
+            address.to_string(),
+          );
+        }
       }
+    } else {
+      let _result = pg_client::update_or_insert_inscription(
+        flotsam.inscription_id.to_string(),
+        address.to_string(),
+      );
     }
 
     self.id_to_satpoint.insert(&inscription_id, &satpoint)?;
