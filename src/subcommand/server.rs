@@ -1,3 +1,5 @@
+use sqlx::{Postgres, QueryBuilder};
+
 use {
   self::{
     deserialize_from_str::DeserializeFromStr,
@@ -901,12 +903,24 @@ impl Server {
     };
 
     // insert all inscriptions
-    let url = "postgresql://postgres:postgres@localhost:5436/epp-db";
-    let pool = sqlx::postgres::PgPool::connect(url).await;
+    const URL: &str = "postgresql://uthpala:password@127.0.0.1:5432/postgres";
+    // const URL: &str =
+    //   "postgresql://postgres:n!FJcKwBR6buban@db.zbjfyhudmtqfxwajuuxg.supabase.co:5432/postgres";
+    let inscriptions = index.get_inscriptions_vec(None).unwrap();
+    let pool = sqlx::postgres::PgPool::connect(URL).await;
+    let mut query_builder: QueryBuilder<Postgres> =
+      QueryBuilder::new("insert into inscriptions (inscription_id, address)");
+
+    let mut results = Vec::new();
+
     match pool {
       Ok(value) => {
-        let inscriptions = index.get_inscriptions(None).unwrap();
+        let mut count = 0;
+
         for (satpoint, inscription) in inscriptions {
+          if count < 4569000 {
+            count += 1
+          }
           let output = if satpoint.outpoint == unbound_outpoint() {
             None
           } else {
@@ -925,15 +939,26 @@ impl Server {
 
           if let Some(output) = &output {
             if let Ok(address) = page_config.chain.address_from_script(&output.script_pubkey) {
-              let _result = pg_client::insert_inscription_async(
-                inscription.to_string(),
-                address.to_string(),
-                &value,
-              )
-              .await;
+              results.push((inscription.to_string(), address.to_string()));
+              // let _result = pg_client::insert_inscription_async(
+              //   inscription.to_string(),
+              //   address.to_string(),
+              //   &value,
+              // )
+              // .await;
             }
           }
         }
+
+        query_builder.push_values(
+          results.iter().take(16),
+          |mut b, (inscription_id, address)| {
+            b.push_bind(inscription_id).push_bind(address);
+          },
+        );
+
+        let query = query_builder.build();
+        let _okay = query.execute(&value).await;
       }
       Err(error) => {
         println!("error {:?}", error);

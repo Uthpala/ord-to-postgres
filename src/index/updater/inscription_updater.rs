@@ -331,12 +331,17 @@ impl<'a, 'db, 'tx, 'i> InscriptionUpdater<'a, 'db, 'tx, 'i> {
               inscription.inscription_id.to_string(),
               err
             );
-            self.update_inscription_location(
-              input_sat_ranges,
-              inscription,
-              new_satpoint,
-              "".to_string(),
-            )?;
+            log::info!(
+              "address not found for inscri {:?} error {:?}",
+              inscription.inscription_id.to_string(),
+              err
+            );
+            // self.update_inscription_location(
+            //   input_sat_ranges,
+            //   inscription,
+            //   new_satpoint,
+            //   "".to_string(),
+            // )?;
           }
         }
       }
