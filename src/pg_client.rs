@@ -3,8 +3,9 @@ use super::*;
 use postgres::{Client as PGCLient, NoTls};
 use std::error::Error;
 
-const URL: &str = "postgresql://uthpala:password@127.0.0.1:5432/postgres";
-// const URL: &str = "postgresql://postgres:n!FJcKwBR6buban@db.zbjfyhudmtqfxwajuuxg.supabase.co:5432/postgres";
+// const URL: &str = "postgresql://uthpala:password@127.0.0.1:5432/postgres";
+const URL: &str =
+  "postgresql://postgres:n!FJcKwBR6buban@db.zbjfyhudmtqfxwajuuxg.supabase.co:5432/postgres";
 
 struct SatToSatpoint {
   pub sat: i64,
@@ -27,7 +28,8 @@ async fn insert_sat_to_satpoint(
 pub async fn insert_all_to_sat_to_satpoint(
   results: &Vec<(Sat, SatPoint)>,
 ) -> Result<(), Box<dyn Error>> {
-  let pool = sqlx::postgres::PgPool::connect(URL).await;
+  const URL_LOCAL: &str = "postgresql://uthpala:password@127.0.0.1:5432/postgres";
+  let pool = sqlx::postgres::PgPool::connect(URL_LOCAL).await;
   match pool {
     Ok(value) => {
       for (sat, sat_point) in results {
